@@ -24,7 +24,7 @@ $ jbang app install camel@apache/camel
 
 Which allows to run CamelJBang with `camel` as shown below.
 
-## 1. Preparing the project
+## Preparing the project
 
 We'll connect to the `camel-sql` project and check the installation status. To change project, open a terminal tab and type the following command:
 
