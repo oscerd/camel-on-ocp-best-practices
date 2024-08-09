@@ -1,0 +1,5 @@
+{
+  "username": "postgresadmin",
+  "password": "masteradmin1234*",
+  "host": "postgres-primary.camel-sql.svc"
+}
