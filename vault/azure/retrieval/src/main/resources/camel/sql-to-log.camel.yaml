@@ -1,0 +1,14 @@
+- route:
+    from:
+      uri: kamelet:postgresql-source
+      parameters:
+        serverName: "{{azure:authsecdbref/host}}"
+        serverPort: 5432
+        username: "{{azure:authsecdbref/username}}"
+        password: "{{azure:authsecdbref/password}}"
+        query: select * from test;
+        databaseName: test
+        delay: 5000
+      steps:
+        - log:
+            message: ${body}
