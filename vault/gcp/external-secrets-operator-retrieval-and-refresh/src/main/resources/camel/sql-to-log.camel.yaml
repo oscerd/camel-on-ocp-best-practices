@@ -1,0 +1,14 @@
+- route:
+    from:
+      uri: kamelet:postgresql-source
+      parameters:
+        serverName: "{{secret:dbcred/host}}"
+        serverPort: 5432
+        username: "{{secret:dbcred/username}}"
+        password: "{{secret:dbcred/password}}"
+        query: select * from test;
+        databaseName: test
+        delay: 20000
+      steps:
+        - log:
+            message: ${body}
