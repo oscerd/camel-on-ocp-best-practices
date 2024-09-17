@@ -77,7 +77,7 @@ and fill with the correct authentication information
 
 ## Deploy to OCP
 
-Once the process complete
+Run the following command
 
 ```
 ./mvnw clean -DskipTests oc:deploy
