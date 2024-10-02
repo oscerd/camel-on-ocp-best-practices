@@ -114,7 +114,7 @@ az keyvault set-policy --name <vaultName> --spn <appId> --secret-permissions get
 You can create a secret through Azure CLI with the following command:
 
 ```
-az keyvault secret set --name authsecdb --vault-name <vaultName> -f postgresCreds.json
+az keyvault secret set --name authsecdbref --vault-name <vaultName> -f postgresCreds.json
 ```
 
 Where the content of secret.json could be something like:
@@ -127,15 +127,51 @@ Where the content of secret.json could be something like:
 }
 ```
 
-Now create the secret.
-
-```
-oc apply -f azure-keyvault-secrets.yaml
-```
-
 Don't forget to modify the keyVault name in the application.properties file
 
-This complete the Database setup.
+Now we need to setup the Eventhub/EventGrid notification for being informed about secrets updates.
+
+First of all we'll need a Blob account and Blob container, to track Eventhub consuming activities.
+
+```
+az storage account create --name <blobAccountName> --resource-group <resourceGroup>
+```
+
+Then create a container
+
+```
+az storage container create --account-name <blobAccountName> --name <blobContainerName>
+```
+
+Then recover the access key for this purpose
+
+```
+az storage account keys list -g <resourceGroup> -n <blobAccountName>
+```
+
+Substitute the blob Account name, blob Container name and Blob Access Key into the application.properties file.
+
+Let's now create the Eventhub side
+
+Create the namespace first
+
+```
+az eventhubs namespace create --resource-group <resourceGroup> --name <eventhub-namespace> --location westus --sku Standard --enable-auto-inflate --maximum-throughput-units 20
+```
+
+Now create the resource
+
+```
+az eventhubs eventhub create --resource-group <resourceGroup> --namespace-name <eventhub-namespace> --name <eventhub-name> --cleanup-policy Delete --partition-count 15
+```
+
+In the Azure portal create a shared policy for the just create eventhub resource with "MANAGE" permissions and copy the connection string.
+
+Substitute the connection string into the application.properties.
+
+In the Azure portal, in the key vault we're using, select events and create event subscription to event grid, by selecting "event grid schema", a system topic name of your choice and the eventhub endpoint for the just created eventhub resource.
+
+This complete the Database and secret refresh setup.
 
 ## Deploy to OCP
 
@@ -186,4 +222,33 @@ Jolokia: Agent started with URL https://172.17.5.148:8778/jolokia/
 2024-10-02T10:10:19.479Z  INFO 1 --- [%20from%20test;] route1                                   : {"data":"world"}
 ```
 
+## Auto refresh of the secret and modification
 
+To show how to refresh works we'll need to change the password for postgresadmin user on our Database.
+
+First run the following command:
+
+```
+oc rsh $(oc get pods -l postgres-operator.crunchydata.com/role=master -o name)
+```
+
+Now you need to change the password inside the container
+
+```
+sh-4.4$ psql -U postgres -c "ALTER USER postgresadmin PASSWORD 'masteradmin12345*';"
+```
+
+At the same time modify the secret stored into the file postgresCreds.json with the new password and run:
+
+```
+az keyvault secret set --name authsecdbref --vault-name <keyvaultName> -f postgresCreds.json
+```
+
+Now get back to the log and you should see the following entries:
+
+```
+2024-10-02T13:33:50.659Z  INFO 1 --- [ition-pump-3-18] o.a.c.c.a.k.v.EventhubsReloadTriggerTask : Update for Azure secret: authsecdbref detected, triggering CamelContext reload
+2024-10-02T13:33:50.659Z  INFO 1 --- [ition-pump-3-18] o.a.c.s.DefaultContextReloadStrategy     : Reloading CamelContext (camel-1) triggered by: Azure Secrets Refresh Task
+2024-10-02T13:33:52.085Z  INFO 1 --- [%20from%20test;] route1                                   : {"data":"hello"}
+2024-10-02T13:33:52.085Z  INFO 1 --- [%20from%20test;] route1                                   : {"data":"world"}
+```
